@@ -1,0 +1,50 @@
+package org.hibernate.url_shortener_backend.controller;
+
+import org.hibernate.url_shortener_backend.dto.ShortenRequest;
+import org.hibernate.url_shortener_backend.model.Url;
+import org.hibernate.url_shortener_backend.service.UrlService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Map;
+
+@RestController
+@RequiredArgsConstructor
+public class UrlController {
+
+    private final UrlService urlService;
+
+    @PostMapping("/api/shorten")
+    public ResponseEntity<?> shortenUrl(@RequestBody ShortenRequest request) {
+        try {
+            Url url = urlService.shortenUrl(
+                    request.getUrl(),
+                    request.getCustomAlias(),
+                    request.getExpiresAt()
+            );
+
+            String shortUrl = "http://localhost:8080/" + url.getShortCode();
+
+            return ResponseEntity.ok(Map.of(
+                    "shortUrl", shortUrl,
+                    "shortCode", url.getShortCode(),
+                    "originalUrl", url.getOriginalUrl()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{shortCode}")
+    public void redirect(@PathVariable String shortCode, HttpServletResponse response) throws IOException {
+        String originalUrl = urlService.getOriginalUrl(shortCode)
+                .orElseThrow(() -> new RuntimeException("URL not found or expired"));
+
+        response.sendRedirect(originalUrl);
+    }
+}
