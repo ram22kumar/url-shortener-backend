@@ -36,7 +36,9 @@ public class UrlController {
                     request.getExpiresAt()
             );
 
-            String shortUrl = "http://localhost:8080/" + url.getShortCode();
+            String baseUrl = System.getenv("BASE_URL") != null ?
+                    System.getenv("BASE_URL") : "http://localhost:8080";
+            String shortUrl = baseUrl + "/" + url.getShortCode();
 
             return ResponseEntity.ok(Map.of(
                     "shortUrl", shortUrl,
