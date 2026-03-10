@@ -1,10 +1,13 @@
 package org.hibernate.url_shortener_backend.config;
 
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.protocol.ProtocolVersion;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -18,7 +21,8 @@ public class RedisConfig {
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         try {
-            // Parse Redis URL: redis://default:PASSWORD@host:port
+            // Parse Redis URL: redis://default:PASSWORD@host:port or rediss://...
+            boolean useSsl = redisUrl.startsWith("rediss://");
             String url = redisUrl.replace("redis://", "").replace("rediss://", "");
 
             String host = "localhost";
@@ -35,7 +39,7 @@ public class RedisConfig {
                 String[] hostPort = parts[1].split(":");
                 host = hostPort[0];
                 if (hostPort.length > 1) {
-                    port = Integer.parseInt(hostPort[1].split("/")[0]); // Handle trailing path
+                    port = Integer.parseInt(hostPort[1].split("/")[0]);
                 }
             }
 
@@ -44,12 +48,33 @@ public class RedisConfig {
                 config.setPassword(password);
             }
 
-            System.out.println("✅ Redis connection: " + host + ":" + port);
+            // Configure SSL and client options
+            LettuceClientConfiguration.LettuceClientConfigurationBuilder clientConfigBuilder =
+                    LettuceClientConfiguration.builder();
 
-            return new LettuceConnectionFactory(config);
+            if (useSsl) {
+                clientConfigBuilder.useSsl();
+                System.out.println("✅ Redis SSL enabled");
+            }
+
+            // Set client options for better compatibility
+            clientConfigBuilder.clientOptions(
+                    ClientOptions.builder()
+                            .protocolVersion(ProtocolVersion.RESP2)
+                            .build()
+            );
+
+            LettuceClientConfiguration clientConfig = clientConfigBuilder.build();
+
+            System.out.println("✅ Redis connecting to: " + host + ":" + port + " (SSL: " + useSsl + ")");
+
+            return new LettuceConnectionFactory(config, clientConfig);
 
         } catch (Exception e) {
-            System.err.println("⚠️ Redis connection failed, using fallback: " + e.getMessage());
+            System.err.println("⚠️ Redis configuration error: " + e.getMessage());
+            e.printStackTrace();
+
+            // Fallback to localhost
             return new LettuceConnectionFactory(new RedisStandaloneConfiguration("localhost", 6379));
         }
     }
