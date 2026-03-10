@@ -2,6 +2,7 @@ package org.hibernate.url_shortener_backend.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnBean(RedisTemplate.class)
 public class RedisService {
 
     private final RedisTemplate<String, String> redisTemplate;
@@ -21,7 +23,7 @@ public class RedisService {
         try {
             String key = URL_PREFIX + shortCode;
             redisTemplate.opsForValue().set(key, originalUrl, CACHE_TTL, TimeUnit.SECONDS);
-            log.info("Cached URL: {} -> {}", shortCode, originalUrl);
+            log.info("Cached URL: {}", shortCode);
         } catch (Exception e) {
             log.error("Error caching URL: {}", e.getMessage());
         }

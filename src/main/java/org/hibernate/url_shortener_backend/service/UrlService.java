@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hibernate.url_shortener_backend.model.Url;
 import org.hibernate.url_shortener_backend.repository.UrlRepository;
 import org.hibernate.url_shortener_backend.util.Base62Encoder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +18,9 @@ import java.util.Optional;
 public class UrlService {
 
     private final UrlRepository urlRepository;
-    private final RedisService redisService;
+
+    @Autowired(required = false)
+    private RedisService redisService;
 
     @Transactional
     public Url shortenUrl(String originalUrl, String customAlias, LocalDateTime expiresAt) {
@@ -37,8 +40,10 @@ public class UrlService {
 
             url = urlRepository.save(url);
 
-            // Cache the URL
-            redisService.cacheUrl(url.getShortCode(), url.getOriginalUrl());
+            // Cache the URL if Redis is available
+            if (redisService != null) {
+                redisService.cacheUrl(url.getShortCode(), url.getOriginalUrl());
+            }
 
             return url;
         }
@@ -58,8 +63,10 @@ public class UrlService {
         url.setShortCode(shortCode);
         url = urlRepository.save(url);
 
-        // Cache the URL
-        redisService.cacheUrl(shortCode, originalUrl);
+        // Cache the URL if Redis is available
+        if (redisService != null) {
+            redisService.cacheUrl(shortCode, originalUrl);
+        }
 
         log.info("Created short URL: {} -> {}", shortCode, originalUrl);
 
@@ -68,20 +75,18 @@ public class UrlService {
 
     @Transactional
     public Optional<String> getOriginalUrl(String shortCode) {
-        // Check cache first (FAST PATH)
-        String cachedUrl = redisService.getCachedUrl(shortCode);
-        if (cachedUrl != null) {
-            log.info("✅ Cache HIT for: {}", shortCode);
-
-            // Increment counter asynchronously (don't block redirect)
-            incrementClickCount(shortCode);
-
-            return Optional.of(cachedUrl);
+        // Check cache first if Redis is available (FAST PATH)
+        if (redisService != null) {
+            String cachedUrl = redisService.getCachedUrl(shortCode);
+            if (cachedUrl != null) {
+                log.info("✅ Cache HIT for: {}", shortCode);
+                incrementClickCount(shortCode);
+                return Optional.of(cachedUrl);
+            }
+            log.info("❌ Cache MISS for: {}", shortCode);
         }
 
-        log.info("❌ Cache MISS for: {}", shortCode);
-
-        // Cache miss - query database
+        // Cache miss or Redis unavailable - query database
         Optional<Url> urlOpt = urlRepository.findByShortCode(shortCode);
 
         if (urlOpt.isEmpty()) {
@@ -95,8 +100,10 @@ public class UrlService {
             return Optional.empty();
         }
 
-        // Cache for next time
-        redisService.cacheUrl(shortCode, url.getOriginalUrl());
+        // Cache for next time if Redis is available
+        if (redisService != null) {
+            redisService.cacheUrl(shortCode, url.getOriginalUrl());
+        }
 
         // Increment click count
         url.setClickCount(url.getClickCount() + 1);
@@ -106,7 +113,6 @@ public class UrlService {
     }
 
     private void incrementClickCount(String shortCode) {
-        // This would normally be async (@Async) but keeping simple for now
         urlRepository.findByShortCode(shortCode).ifPresent(url -> {
             url.setClickCount(url.getClickCount() + 1);
             urlRepository.save(url);

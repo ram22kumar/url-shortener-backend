@@ -13,7 +13,7 @@ public class DatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        // Try Render's individual variables first
+        // Use Render's individual PostgreSQL environment variables
         String pgHost = System.getenv("PGHOST");
         String pgPort = System.getenv("PGPORT");
         String pgDatabase = System.getenv("PGDATABASE");
@@ -26,9 +26,7 @@ public class DatabaseConfig {
                     pgPort != null ? pgPort : "5432",
                     pgDatabase);
 
-            System.out.println("Using Render PostgreSQL:");
-            System.out.println("  URL: " + jdbcUrl);
-            System.out.println("  User: " + pgUser);
+            System.out.println("✅ Using PostgreSQL: " + jdbcUrl);
 
             return DataSourceBuilder.create()
                     .url(jdbcUrl)
@@ -39,7 +37,7 @@ public class DatabaseConfig {
         }
 
         // Fallback for local development
-        System.out.println("Using H2 in-memory database (development)");
+        System.out.println("⚠️ Using H2 in-memory database (local development)");
         return DataSourceBuilder.create()
                 .url("jdbc:h2:mem:urlshortener")
                 .username("sa")

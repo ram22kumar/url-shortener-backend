@@ -4,11 +4,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.url_shortener_backend.service.RateLimitService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
 @RequiredArgsConstructor
+@ConditionalOnBean(RateLimitService.class)
 public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final RateLimitService rateLimitService;

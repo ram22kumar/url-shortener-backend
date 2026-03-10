@@ -2,6 +2,7 @@ package org.hibernate.url_shortener_backend.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnBean(RedisTemplate.class)
 public class RateLimitService {
 
     private final RedisTemplate<String, String> redisTemplate;
@@ -19,9 +21,8 @@ public class RateLimitService {
     private static final int WINDOW_SECONDS = 60; // per minute
 
     public boolean isAllowed(String ipAddress) {
-        String key = RATE_LIMIT_PREFIX + ipAddress;
-
         try {
+            String key = RATE_LIMIT_PREFIX + ipAddress;
             String countStr = redisTemplate.opsForValue().get(key);
             int count = countStr != null ? Integer.parseInt(countStr) : 0;
 
@@ -30,12 +31,9 @@ public class RateLimitService {
                 return false;
             }
 
-            // Increment counter
             if (count == 0) {
-                // First request, set with expiry
                 redisTemplate.opsForValue().set(key, "1", WINDOW_SECONDS, TimeUnit.SECONDS);
             } else {
-                // Increment existing counter
                 redisTemplate.opsForValue().increment(key);
             }
 
@@ -49,9 +47,13 @@ public class RateLimitService {
     }
 
     public int getRemainingRequests(String ipAddress) {
-        String key = RATE_LIMIT_PREFIX + ipAddress;
-        String countStr = redisTemplate.opsForValue().get(key);
-        int count = countStr != null ? Integer.parseInt(countStr) : 0;
-        return Math.max(0, MAX_REQUESTS - count);
+        try {
+            String key = RATE_LIMIT_PREFIX + ipAddress;
+            String countStr = redisTemplate.opsForValue().get(key);
+            int count = countStr != null ? Integer.parseInt(countStr) : 0;
+            return Math.max(0, MAX_REQUESTS - count);
+        } catch (Exception e) {
+            return MAX_REQUESTS;
+        }
     }
 }

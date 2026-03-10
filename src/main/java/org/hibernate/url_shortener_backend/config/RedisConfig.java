@@ -9,8 +9,6 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-import java.net.URI;
-
 @Configuration
 public class RedisConfig {
 
@@ -20,17 +18,24 @@ public class RedisConfig {
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         try {
-            // Parse Upstash Redis URL: redis://default:PASSWORD@endpoint.upstash.io:6379
-            URI uri = new URI(redisUrl);
+            // Parse Redis URL: redis://default:PASSWORD@host:port
+            String url = redisUrl.replace("redis://", "").replace("rediss://", "");
 
-            String host = uri.getHost();
-            int port = uri.getPort();
+            String host = "localhost";
+            int port = 6379;
             String password = null;
 
-            if (uri.getUserInfo() != null) {
-                String[] userInfo = uri.getUserInfo().split(":");
-                if (userInfo.length > 1) {
-                    password = userInfo[1];
+            if (url.contains("@")) {
+                String[] parts = url.split("@");
+                String[] auth = parts[0].split(":");
+                if (auth.length > 1) {
+                    password = auth[1];
+                }
+
+                String[] hostPort = parts[1].split(":");
+                host = hostPort[0];
+                if (hostPort.length > 1) {
+                    port = Integer.parseInt(hostPort[1].split("/")[0]); // Handle trailing path
                 }
             }
 
@@ -39,10 +44,12 @@ public class RedisConfig {
                 config.setPassword(password);
             }
 
+            System.out.println("✅ Redis connection: " + host + ":" + port);
+
             return new LettuceConnectionFactory(config);
 
         } catch (Exception e) {
-            // Fallback to localhost for development
+            System.err.println("⚠️ Redis connection failed, using fallback: " + e.getMessage());
             return new LettuceConnectionFactory(new RedisStandaloneConfiguration("localhost", 6379));
         }
     }
