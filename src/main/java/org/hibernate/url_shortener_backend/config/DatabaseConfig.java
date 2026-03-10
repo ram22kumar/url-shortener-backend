@@ -6,34 +6,40 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
-import java.net.URI;
-import java.net.URISyntaxException;
 
 @Configuration
 public class DatabaseConfig {
 
     @Bean
     @Primary
-    public DataSource dataSource() throws URISyntaxException {
-        String databaseUrl = System.getenv("DATABASE_URL");
+    public DataSource dataSource() {
+        // Try Render's individual variables first
+        String pgHost = System.getenv("PGHOST");
+        String pgPort = System.getenv("PGPORT");
+        String pgDatabase = System.getenv("PGDATABASE");
+        String pgUser = System.getenv("PGUSER");
+        String pgPassword = System.getenv("PGPASSWORD");
 
-        if (databaseUrl != null && !databaseUrl.isEmpty()) {
-            // Parse Render's DATABASE_URL format (postgresql://...)
-            URI dbUri = new URI(databaseUrl);
+        if (pgHost != null && pgDatabase != null) {
+            String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s",
+                    pgHost,
+                    pgPort != null ? pgPort : "5432",
+                    pgDatabase);
 
-            String username = dbUri.getUserInfo().split(":")[0];
-            String password = dbUri.getUserInfo().split(":")[1];
-            String jdbcUrl = "jdbc:postgresql://" + dbUri.getHost() + ':' + dbUri.getPort() + dbUri.getPath();
+            System.out.println("Using Render PostgreSQL:");
+            System.out.println("  URL: " + jdbcUrl);
+            System.out.println("  User: " + pgUser);
 
             return DataSourceBuilder.create()
                     .url(jdbcUrl)
-                    .username(username)
-                    .password(password)
+                    .username(pgUser)
+                    .password(pgPassword)
                     .driverClassName("org.postgresql.Driver")
                     .build();
         }
 
-        // Fallback for local development (H2)
+        // Fallback for local development
+        System.out.println("Using H2 in-memory database (development)");
         return DataSourceBuilder.create()
                 .url("jdbc:h2:mem:urlshortener")
                 .username("sa")
